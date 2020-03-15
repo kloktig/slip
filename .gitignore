@@ -1,0 +1,7 @@
+# IDE files
+.idea/**
+**/build/**
+**/.gradle/**
+**/gradle/**
+*.iml
+.DS_Store
