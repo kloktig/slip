@@ -1,6 +1,12 @@
+import mu.KotlinLogging
 import java.util.*
 
-class Slip(val channel: Queue<Byte>) {
+class Channel {
+    val values = LinkedList<Byte>() as Queue<Byte>
+}
+
+@ExperimentalUnsignedTypes
+class Slip(val channel: Channel) {
     companion object {
         const val END = 192.toByte()
         const val ESC = 219.toByte()
@@ -8,16 +14,19 @@ class Slip(val channel: Queue<Byte>) {
         const val ESC_ESC = 221.toByte()
     }
 
-    private lateinit var receiveBuffer: Array<Byte>
-    var received: Int = 0
+    private val logger = KotlinLogging.logger {}
 
+    private lateinit var receiveBuffer: Array<Byte>
+    private var received: Int = 0
+
+    fun getReceived() = receiveBuffer.take(received)
 
     fun sendPacket(packet: List<Byte>, length: Int) {
         sendChar(END)
-        var len = length
+        var idx = 0
 
-        while (len-- > 0) {
-            when (val byte = packet[len]) {
+        while (idx < length) {
+            when (val byte = packet[idx++]) {
                 END -> {
                     sendChar(ESC)
                     sendChar(ESC_END)
@@ -33,7 +42,7 @@ class Slip(val channel: Queue<Byte>) {
         sendChar(END)
     }
 
-    fun receivePacket(packet: List<Byte>, maxLength: Int): Int {
+    fun receivePacket(maxLength: Int): Int {
         received = 0
         receiveBuffer = Array(maxLength) { ESC }
 
@@ -42,14 +51,13 @@ class Slip(val channel: Queue<Byte>) {
                 END ->
                     if (received > 0)
                         return received
-                    else
-                        received = maxLength // TODO: What to do here?
                 ESC -> {
-                    when (val b = receiveChar()) {
-                        ESC_END -> "" // TODO: Print
-                        ESC_ESC -> "" // TODO: Print
-                        else -> addToReceivebuffer(b)
+                    val char = when (val b = receiveChar()) {
+                        ESC_END -> END
+                        ESC_ESC -> ESC
+                        else -> b
                     }
+                    addToReceivebuffer(char)
                 }
                 else -> addToReceivebuffer(byte)
 
@@ -59,18 +67,18 @@ class Slip(val channel: Queue<Byte>) {
     }
 
     private fun sendChar(char: Byte) {
-        // Handle Bytestuffing
-        channel.add(char)
+        logger.info { "sendChar: ${char.toUByte()}" }
+        channel.values.add(char)
     }
 
     private fun receiveChar(): Byte {
-        // Handle Bytestuffing
-        return channel.remove()
+        val char = channel.values.remove()
+        logger.info { "receiveChar: ${char.toUByte()}" }
+        return char
     }
 
     private fun addToReceivebuffer(byte: Byte) {
+        logger.info { "addToReceivebuffer: idx: $received, value:${byte.toUByte()}" }
         receiveBuffer[received++] = byte
     }
-
-
 }
